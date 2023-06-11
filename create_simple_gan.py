@@ -1,8 +1,10 @@
 import datetime
 import random
-import torch
+
 import numpy as np
+import matplotlib
 import matplotlib.pyplot as plt
+import torch
 import torchvision.datasets
 
 from torch import nn
@@ -66,12 +68,16 @@ if __name__ == "__main__":
     discriminator = Discriminator(input_size=(28, 28), hidden_size=10)
 
     batch_size = 8
-    num_epochs = 30
+    num_epochs = 50
+    num_plots = 3
 
     random.seed(42)
     np.random.seed(19)
     torch.manual_seed(19)
     torch.cuda.manual_seed(0)
+
+    font = {'weight': 'bold', 'size': 20}
+    matplotlib.rc('font', **font)
 
     torch.backends.cudnn.deterministic = True
 
@@ -93,15 +99,14 @@ if __name__ == "__main__":
     loss_fn = torch.nn.BCELoss(reduction='mean')
 
     optimizer_gen = torch.optim.Adam(params=generator.parameters(), lr=0.01)
-    optimizer_disc = torch.optim.Adam(params=discriminator.parameters(), lr=0.01)
+    optimizer_disc = torch.optim.Adam(params=discriminator.parameters(), lr=0.05)
 
     for i in range(num_epochs):
         for batch, y in train_loader:
             batch = batch.to(device)
             batch = batch / 255.0
 
-            x = torch.rand(size=[batch_size, input_noise_shape])
-            x = x.to(device)
+            x = torch.rand(size=[batch_size, input_noise_shape], device=device)
             img_gen = generator(x)
 
             fake_input = discriminator(img_gen)
@@ -125,7 +130,17 @@ if __name__ == "__main__":
 
         print(f"{datetime.datetime.now()} Epoch {i + 1} out of {num_epochs} passed")
 
+    generator.to(device=torch.device('cpu'))
+    generator.eval()
 
-    x = torch.rand(size=[1, input_noise_shape])
-    plt.imshow(int(255.0 * generator(x)), cmap='autumn')
+    for i in range(num_plots):
+        plt.subplot(1, num_plots, i + 1)
+        x = torch.rand(size=[1, input_noise_shape])
+        img_to_plot = generator(x).detach().numpy()
+        # img_to_plot = 255.0 * img_to_plot
+        img_to_plot = img_to_plot.reshape((28, 28))
+        plt.imshow(img_to_plot, cmap='autumn')
     plt.show()
+
+    generator_scripted = torch.jit.script(generator)
+    generator_scripted.save(f"generator_mnist_epochs_{num_epochs}.pt")
