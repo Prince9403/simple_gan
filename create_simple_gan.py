@@ -39,7 +39,7 @@ class DeeperGenerator(torch.nn.Module):
         self.act_1 = nn.ReLU()
         self.layer_2 = nn.Linear(in_features=inner_dim_0, out_features=inner_dim_1)
         self.act_2 = nn.ReLU()
-        self.layer_3 = nn.Linear(in_features=inner_dim_1, out_features=first_conv_size * first_conv_size)
+        self.layer_3 = nn.Linear(in_features=inner_dim_1, out_features=first_conv_size[0] * first_conv_size[1])
         self.act_3 = nn.ReLU()
         self.layer_4 = torch.nn.Conv2d(in_channels=1, out_channels=out_channels_0, kernel_size=kernel_size_0)
         self.act_4 = nn.ReLU()
@@ -47,12 +47,12 @@ class DeeperGenerator(torch.nn.Module):
                                        kernel_size=kernel_size_1)
         self.act_5 = nn.ReLU()
 
-        z = torch.rand(size=(input_dim,))
+        z = torch.rand(size=(5, input_dim,))
 
         z = self.act_1(self.layer_1(z))
         z = self.act_2(self.layer_2(z))
         z = self.act_3(self.layer_3(z))
-        z = torch.reshape(z, (z.shape[0], 1, self.output_size[0], self.output_size[1]))
+        z = torch.reshape(z, (z.shape[0], 1, self.first_conv_size[0], self.first_conv_size[1]))
         z = self.act_4(self.layer_4(z))
         z = self.act_5(self.layer_5(z))
 
@@ -65,7 +65,7 @@ class DeeperGenerator(torch.nn.Module):
                                        kernel_size=(m, n))
         self.act_6 = torch.nn.Sigmoid()
 
-        z = self.act_6(self.layer_6(x))
+        z = self.act_6(self.layer_6(z))
 
         if (z.shape[2],z.shape[3]) != output_size:
             raise RuntimeError("SOmething bad with generator network dimensions")
@@ -74,10 +74,11 @@ class DeeperGenerator(torch.nn.Module):
         x = self.act_1(self.layer_1(x))
         x = self.act_2(self.layer_2(x))
         x = self.act_3(self.layer_3(x))
-        x = torch.reshape(x, (x.shape[0], 1, self.output_size[0], self.output_size[1]))
+        x = torch.reshape(x, (x.shape[0], 1, self.first_conv_size[0], self.first_conv_size[1]))
         x = self.act_4(self.layer_4(x))
         x = self.act_5(self.layer_5(x))
         x = self.act_6(self.layer_6(x))
+        return x
 
 
 class Discriminator(torch.nn.Module):
