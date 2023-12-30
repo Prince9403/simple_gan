@@ -51,7 +51,7 @@ class Generator_6Layers(torch.nn.Module):
         n = z.shape[3] + 1 - output_size[1]
         if (m <= 0) or (n <= 0):
             raise ValueError("Incorrect dimensions of the generator network")
-        print(f"Using ({m}, {n}) size for convolution of  the 6th generator layer")
+        print(f"Using ({m}, {n}) size for convolution of the 6th generator layer")
         self.layer_6 = torch.nn.Conv2d(in_channels=out_channels_1, out_channels=1,
                                        kernel_size=(m, n))
         self.act_6 = torch.nn.Sigmoid()
@@ -59,7 +59,7 @@ class Generator_6Layers(torch.nn.Module):
         z = self.act_6(self.layer_6(z))
 
         if (z.shape[2],z.shape[3]) != output_size:
-            raise RuntimeError("SOmething bad with generator network dimensions")
+            raise RuntimeError("Something bad with generator network dimensions")
 
     def forward(self, x):
         x = self.act_1(self.layer_1(x))

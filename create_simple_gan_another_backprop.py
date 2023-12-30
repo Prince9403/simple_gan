@@ -14,9 +14,9 @@ import gan_base_classes as gbc
 if __name__ == "__main__":
 
     image_size = (28, 28)
-    input_noise_shape = 10
+    input_noise_shape = 64
     batch_size = 8
-    num_epochs = 5
+    num_epochs = 60
     num_plots = 4
 
     random.seed(42)
@@ -44,7 +44,7 @@ if __name__ == "__main__":
 
     train_loader = torch.utils.data.DataLoader(
         dataset=torchvision.datasets.MNIST(root="mnist_data", train=True, download=True, transform=initial_transform),
-        batch_size=16,
+        batch_size=batch_size,
         shuffle=True
     )
 
@@ -52,70 +52,75 @@ if __name__ == "__main__":
 
     loss_fn = torch.nn.BCELoss(reduction='mean')
 
-    optimizer_gen = torch.optim.Adam(params=generator.parameters(), lr=0.003)
-    optimizer_disc = torch.optim.Adam(params=discriminator.parameters(), lr=0.003)
+    optimizer_gen = torch.optim.Adam(params=generator.parameters(), lr=0.0002)
+    optimizer_disc = torch.optim.Adam(params=discriminator.parameters(), lr=0.0002)
 
-    losses = []
-    fake_losses = []
-    true_losses = []
+    generator_losses = []
+    discriminator_losses = []
 
     for i in range(num_epochs):
-        curr_epoch_loss = 0.0
-        curr_fake_loss = 0.0
-        curr_true_loss = 0.0
+        curr_generator_loss = 0.0
+        curr_discriminator_loss = 0.0
 
         num_correct_true_for_epoch = 0
         num_correct_fake_for_epoch = 0
         num_items_epoch = 0
+        num_batches = 0
 
-        for batch, y in train_loader:
+        for j, (batch, y) in enumerate(train_loader):
             batch = batch.to(device)
-            batch = batch / 255.0
 
             x = torch.rand(size=[batch_size, input_noise_shape], device=device)
             img_gen = generator(x)
-            fake_input = discriminator(img_gen)
-            target_fake = torch.zeros((len(fake_input), 1))
-            loss_fake = loss_fn(fake_input, target_fake)
-            curr_fake_loss += loss_fake.item()
+
+            fake_input = discriminator(img_gen.data)
+            target_discriminator_fake = torch.zeros((len(fake_input), 1))
+            loss_discriminator_fake = loss_fn(fake_input, target_discriminator_fake)
 
             true_input = discriminator(batch)
-            target_true = torch.ones((len(true_input), 1))
-            loss_true = loss_fn(true_input, target_true)
-            curr_true_loss += loss_true.item()
+            target_discriminator_true = torch.ones((len(true_input), 1))
+            loss_discriminator_true = loss_fn(true_input, target_discriminator_true)
 
-            loss = loss_fake + loss_true
-            curr_epoch_loss += loss.item()
+            loss_discriminator = loss_discriminator_fake + loss_discriminator_true
+            curr_discriminator_loss += loss_discriminator.item()
 
-            num_correct_true = (true_input > 0.1).float().sum().item()
-            num_correct_fake = (fake_input < 0.9).float().sum().item()
+            # train discriminator
+            optimizer_disc.zero_grad()
+            loss_discriminator.backward()
+
+            optimizer_disc.step()
+
+            x = torch.rand(size=[batch_size, input_noise_shape], device=device)
+            img_gen = generator(x)
+
+            fake_input = discriminator(img_gen)
+            target_generator_fake = torch.ones((len(fake_input), 1))
+            loss_generator = loss_fn(fake_input, target_generator_fake)
+            curr_generator_loss += loss_generator.item()
+
+            # train generator.
+            optimizer_gen.zero_grad()
+            loss_generator.backward()
+            optimizer_gen.step()
+
+            num_correct_true = (true_input > 0.5).float().sum().item()
+            num_correct_fake = (fake_input < 0.5).float().sum().item()
 
             num_correct_true_for_epoch += num_correct_true
             num_correct_fake_for_epoch += num_correct_fake
             num_items_epoch += len(batch)
 
-            optimizer_gen.zero_grad()
-            optimizer_disc.zero_grad()
-
-            loss.backward()
-
-            for param in generator.parameters():
-                param.grad = -param.grad
-
-            optimizer_gen.step()
-            optimizer_disc.step()
+            num_batches += 1
 
         acc_true = num_correct_true_for_epoch / num_items_epoch
         acc_fake = num_correct_fake_for_epoch / num_items_epoch
 
-        losses.append(curr_epoch_loss)
-        fake_losses.append(curr_true_loss)
-        true_losses.append(curr_fake_loss)
+        generator_losses.append(curr_generator_loss / num_batches)
+        discriminator_losses.append(curr_discriminator_loss / num_batches)
 
         print(f"{datetime.datetime.now()} Epoch {i + 1} out of {num_epochs} passed, "
-              f"full train loss: {curr_epoch_loss:.4f}, "
-              f"fake loss: {curr_fake_loss:.4f}, "
-              f"true loss: {curr_true_loss:.4f}, "
+              f"generator loss: {curr_generator_loss:.4f}, "
+              f"discriminator loss: {curr_discriminator_loss:.4f}, "
               f"accuracy on true items: {acc_true:.4f}, "
               f"accuracy on fake items: {acc_fake:.4f}, "
               f"num images per epoch: {num_items_epoch}"
@@ -133,9 +138,8 @@ if __name__ == "__main__":
         plt.imshow(img_to_plot, cmap='autumn')
     plt.show()
 
-    plt.plot(losses, label="Full loss")
-    plt.plot(true_losses, label="Loss on true images")
-    plt.plot(fake_losses, label="Loss on fake images")
+    plt.plot(generator_losses, label="Generator losses")
+    plt.plot(discriminator_losses, label="Discriminator losses")
     plt.legend()
     plt.grid()
     plt.title(f"Losses")
